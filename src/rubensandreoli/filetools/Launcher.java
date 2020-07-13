@@ -1,7 +1,10 @@
 package rubensandreoli.filetools;
 
 import javax.swing.SwingUtilities;
+import rubensandreoli.filetools.gui.ComparatorPanel;
 import rubensandreoli.filetools.gui.FileTools;
+import rubensandreoli.filetools.gui.SearchPanel;
+import rubensandreoli.filetools.gui.SplitterPanel;
 
 public class Launcher {
 
@@ -18,7 +21,12 @@ public class Launcher {
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | javax.swing.UnsupportedLookAndFeelException ex) {}
         //</editor-fold>
 
-        SwingUtilities.invokeLater(() -> new FileTools().setVisible(true));
+        FileTools view = new FileTools();
+        view.addToolPanel(new SearchPanel());
+        view.addToolPanel(new SplitterPanel());
+        view.addToolPanel(new ComparatorPanel());
+        
+        SwingUtilities.invokeLater(() -> view.setVisible(true));
 
     }
     
