@@ -94,18 +94,18 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
     // </editor-fold>
     
     // <editor-fold defaultstate="collapsed" desc=" RENDERER "> 
-    public class TaskCellRenderer extends DefaultTableCellRenderer{
+    public class SearchCellRenderer extends DefaultTableCellRenderer{
         private static final long serialVersionUID = 1L;
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            JLabel l = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             if (files.get(row).denied) {
-              l.setBackground(Color.RED);
+                c.setBackground(Color.RED);
+            }else{
+                c.setBackground(null);
             }
-
-          return l;
+          return c;
         }
     
     }
@@ -114,6 +114,7 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
     public SearchPanel() {
         super("Search");
         initComponents();
+        tblFiles.setDefaultRenderer(Object.class, new SearchCellRenderer());
     }
 
     @SuppressWarnings("unchecked")

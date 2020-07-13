@@ -43,6 +43,7 @@ public abstract class ToolPanel extends javax.swing.JPanel {
                     done.accept(get());
                 } catch (InterruptedException | ExecutionException ex) {
                     System.err.println("ERROR: worker interrupted " + ex.getMessage());
+                    ex.printStackTrace();
                 }
             } 
         };

@@ -16,12 +16,6 @@ import rubensandreoli.filetools.tools.SearchAction.FileInfo;
  * https://stackoverflow.com/questions/3263892/format-file-size-as-mb-gb-etc
  */
 public class SearchAction implements Action<LinkedList<FileInfo>>{
-
-    public void setFilters(boolean subfolders, boolean files, boolean folders) {
-        this.subfolders = subfolders;
-        this.files = files;
-        this.folders = folders;
-    }
     
     // <editor-fold defaultstate="collapsed" desc=" FILE INFO "> 
     public static class FileInfo{
@@ -221,9 +215,10 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
         interrupted = true;
     }
 
-//    @Override
-//    public LinkedList<FileInfo> getResult() {
-//        return found;
-//    }
+    public void setFilters(boolean subfolders, boolean files, boolean folders) {
+        this.subfolders = subfolders;
+        this.files = files;
+        this.folders = folders;
+    }
    
 }
