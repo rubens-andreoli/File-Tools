@@ -55,14 +55,11 @@ public class SplitAction implements Action<Boolean>{
     }
     
     public String getFolder(int index){
-        String subfolder = "";
-        if(startIndex >= 0 && endIndex > startIndex && index < files.size()){
-            String filename = files.get(index).getName();
-            if(endIndex < filename.length()){
-                subfolder = filename.substring(startIndex, endIndex);
-            }
+        String subfolder = null;
+        if(index < files.size()){
+            subfolder = getFolder(files.get(index).getName());
         }
-        return subfolder;
+        return subfolder!=null? subfolder:"";
     }
     
     private String getFolder(String filename){
@@ -75,8 +72,8 @@ public class SplitAction implements Action<Boolean>{
 
     @Override
     public Boolean perform() {
-        Iterator<File> i = filteredFiles.iterator();
         boolean moved = false;
+        Iterator<File> i = filteredFiles.iterator();
         while(!interrupted && i.hasNext()){
             File file = i.next();
             String folderName = getFolder(file.getName());

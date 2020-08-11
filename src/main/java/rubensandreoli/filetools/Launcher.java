@@ -3,7 +3,8 @@ package rubensandreoli.filetools;
 import javax.swing.SwingUtilities;
 import rubensandreoli.filetools.gui.ComparatorPanel;
 import rubensandreoli.filetools.gui.FileTools;
-import rubensandreoli.filetools.gui.SearchPanel;
+import rubensandreoli.filetools.gui.FolderSearchPanel;
+import rubensandreoli.filetools.gui.RegexSearchPanel;
 import rubensandreoli.filetools.gui.SplitterPanel;
 
 public class Launcher {
@@ -22,7 +23,8 @@ public class Launcher {
         //</editor-fold>
 
         FileTools view = new FileTools();
-        view.addToolPanel(new SearchPanel());
+        view.addToolPanel(new RegexSearchPanel());
+        view.addToolPanel(new FolderSearchPanel());
         view.addToolPanel(new SplitterPanel());
         view.addToolPanel(new ComparatorPanel());
         

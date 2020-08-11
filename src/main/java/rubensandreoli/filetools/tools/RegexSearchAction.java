@@ -10,32 +10,32 @@ import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
-import rubensandreoli.filetools.tools.SearchAction.FileInfo;
+import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
 
 /** References:
  * https://stackoverflow.com/questions/3263892/format-file-size-as-mb-gb-etc
  */
-public class SearchAction implements Action<LinkedList<FileInfo>>{
+public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
     
-    // <editor-fold defaultstate="collapsed" desc=" FILE INFO "> 
-    public static class FileInfo{
+    // <editor-fold defaultstate="collapsed" desc=" SEARCH FILE "> 
+    public static class SearchFile{
         public final String filename;
         public final Path path;
         public final long size;
         public final boolean denied;
 
-        private FileInfo(String filename, Path path, long size, boolean denied) {
+        private SearchFile(String filename, Path path, long size, boolean denied) {
             this.filename = filename;
             this.path = path;
             this.size = size;
             this.denied = denied;
         }
         
-        private FileInfo(String filename, Path path, long size) {
+        private SearchFile(String filename, Path path, long size) {
             this(filename, path, size, false);
         }
         
-        private FileInfo(String filename, Path path) {
+        private SearchFile(String filename, Path path) {
             this(filename, path, 0, true);
         }
         
@@ -54,10 +54,10 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
     private boolean files = false;
     private boolean folders = true;
     
-    private LinkedList<FileInfo> found = new LinkedList<>();
+    private LinkedList<SearchFile> found = new LinkedList<>();
     private volatile boolean interrupted; 
 
-    public SearchAction(String folder, String regex) {
+    public RegexSearchAction(String folder, String regex) {
         this.folder = Path.of(folder);
         if(regex == null || regex.isEmpty()){
             this.regex = ".*";
@@ -67,7 +67,7 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
     }
 
     @Override
-    public LinkedList<FileInfo> perform() {
+    public LinkedList<SearchFile> perform() {
         try {
             Files.walkFileTree(folder, new SimpleFileVisitor<Path>(){
                 
@@ -102,7 +102,7 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
                                     denied = true;
                                 }
                             }
-                            FileInfo info = new FileInfo(filename, file, size, denied);
+                            SearchFile info = new SearchFile(filename, file, size, denied);
                             found.add(info);
                         }
                     }
@@ -123,7 +123,7 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
                     if(folders){
                         String foldername = dir.getFileName().toString();
                         if(foldername.matches(regex)){
-                            found.add(new FileInfo(foldername, dir, folderSize));
+                            found.add(new SearchFile(foldername, dir, folderSize));
                             folderSize = 0;
                         }
                     }
@@ -166,9 +166,9 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
         return movedOne;
     }
     
-    public boolean moveTo(String folder, List<FileInfo> files){
+    public boolean moveTo(String folder, List<SearchFile> files){
         boolean changed = false;
-        for (FileInfo file : files) {
+        for (SearchFile file : files) {
             try {
                 Files.move(file.path, Path.of(folder).resolve(file.filename));
                 changed = true;
@@ -180,9 +180,9 @@ public class SearchAction implements Action<LinkedList<FileInfo>>{
         return changed;
     }
     
-    public boolean remove(List<FileInfo> files){
+    public boolean remove(List<SearchFile> files){
         boolean changed = false;
-        for (FileInfo file : files) {
+        for (SearchFile file : files) {
             try {
                 Files.delete(file.path);
                 found.remove(file);

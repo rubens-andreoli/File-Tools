@@ -22,18 +22,18 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer;
 import rubensandreoli.commons.swing.PathField;
-import rubensandreoli.filetools.tools.SearchAction;
-import rubensandreoli.filetools.tools.SearchAction.FileInfo;
+import rubensandreoli.filetools.tools.RegexSearchAction;
+import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
 
 /** References:
  * https://stackoverflow.com/questions/550329/how-to-open-a-file-with-the-default-associated-program
  * https://stackoverflow.com/questions/5673430/java-jtable-change-cell-color
  */
-public class SearchPanel extends  ToolPanel{ //TODO: implement filters
+public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
     private static final long serialVersionUID = 1L;
 
-    private SearchAction action;
-    private List<FileInfo> files;
+    private RegexSearchAction action;
+    private List<SearchFile> files;
     private final Model model = new Model();
 
     // <editor-fold defaultstate="collapsed" desc=" MODEL "> 
@@ -78,7 +78,7 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
         
         @Override
         public Object getValueAt(int row, int column) {
-            FileInfo info = files.get(row);
+            SearchFile info = files.get(row); //FIX: out of bounds when deleting/moving
             switch(column){
                 case 0:
                     return info.filename;
@@ -111,10 +111,10 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
     }
     // </editor-fold>
     
-    public SearchPanel() {
-        super("Search");
+    public RegexSearchPanel() {
+        super("Regex Search");
         initComponents();
-        tblFiles.setDefaultRenderer(Object.class, new SearchCellRenderer());
+//        tblFiles.setDefaultRenderer(Object.class, new SearchCellRenderer());
     }
 
     @SuppressWarnings("unchecked")
@@ -195,7 +195,7 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
             pnlRegexLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(pnlRegexLayout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(txfRegex)
+                .addComponent(txfRegex, javax.swing.GroupLayout.DEFAULT_SIZE, 224, Short.MAX_VALUE)
                 .addContainerGap())
         );
         pnlRegexLayout.setVerticalGroup(
@@ -230,7 +230,8 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(chkFile)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(chkFolder))
+                .addComponent(chkFolder)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         pnlFiltersLayout.setVerticalGroup(
             pnlFiltersLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -240,7 +241,7 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
                     .addComponent(chkSubfolders)
                     .addComponent(chkFolder)
                     .addComponent(chkFile))
-                .addGap(5, 5, 5))
+                .addGap(4, 4, 4))
         );
 
         tblFiles.setModel(model);
@@ -259,12 +260,12 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(sclFiles, javax.swing.GroupLayout.DEFAULT_SIZE, 461, Short.MAX_VALUE)
+                    .addComponent(sclFiles)
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(btnFolder)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(txfFolder, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(layout.createSequentialGroup()
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                         .addComponent(pnlRegex, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addGap(0, 0, 0)
                         .addComponent(pnlFilters, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
@@ -295,11 +296,11 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
         if(evt.getButton() == MouseEvent.BUTTON3){
             popTable.show(tblFiles, evt.getX(), evt.getY());
         }else if(evt.getButton() == MouseEvent.BUTTON1 && evt.getClickCount() == 2){
-            FileInfo fileInfo = getClicked(evt.getX(), evt.getY());
+            SearchFile searchFile = getClicked(evt.getX(), evt.getY());
             try {
-                Desktop.getDesktop().open(fileInfo.path.toFile());
+                Desktop.getDesktop().open(searchFile.path.toFile());
             } catch (IOException ex) {
-                System.err.println("ERROR: failed openning file "+ fileInfo.path + "\n"+ ex.getMessage());
+                System.err.println("ERROR: failed openning file "+ searchFile.path + "\n"+ ex.getMessage());
             }
         }
     }//GEN-LAST:event_tblFilesMouseClicked
@@ -370,15 +371,14 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
     @Override
     public void start() {
         doInBackgroud(() -> {
-            action = new SearchAction(txfFolder.getText(), txfRegex.getText());
+            action = new RegexSearchAction(txfFolder.getText(), txfRegex.getText());
             action.setFilters(chkSubfolders.isSelected(), chkFile.isSelected(), chkFolder.isSelected());
             return action.perform();
         }, list ->{
             files = list;
             model.fireTableDataChanged();
             if(files.isEmpty()){
-                JOptionPane.showMessageDialog(
-                        SearchPanel.this, 
+                JOptionPane.showMessageDialog(RegexSearchPanel.this, 
                         "No files/folders were found with the regex: "+txfRegex.getText(), 
                         "Nothing Found", 
                         JOptionPane.WARNING_MESSAGE
@@ -395,13 +395,13 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
         }
     }
     
-    private FileInfo getClicked(int x, int y){
+    private SearchFile getClicked(int x, int y){
         int clickedRow = tblFiles.rowAtPoint(new Point(x, y));
-        return (FileInfo) model.getValueAt(clickedRow, tblFiles.getColumnCount());
+        return (SearchFile) model.getValueAt(clickedRow, tblFiles.getColumnCount());
     }
     
-    private List<FileInfo> getSelected(){
-        List<FileInfo> list = new ArrayList<>();
+    private List<SearchFile> getSelected(){
+        List<SearchFile> list = new ArrayList<>();
         for (int i : tblFiles.getSelectedRows()) {
             list.add(files.get(i));
         }
@@ -410,7 +410,7 @@ public class SearchPanel extends  ToolPanel{ //TODO: implement filters
     
     @Override
     public Integer getMnemonic() {
-        return KeyEvent.VK_S;
+        return KeyEvent.VK_R;
     }
 
 }
