@@ -12,22 +12,45 @@ import java.util.List;
 import java.util.function.Function;
 import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
 
-/** References:
- * https://stackoverflow.com/questions/3263892/format-file-size-as-mb-gb-etc
+/** 
+ * References:
+ https://stackoverflow.com/questions/3263892/format-file-bytes-as-mb-gb-etc
  */
 public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
     
+    // <editor-fold defaultstate="collapsed" desc=" STATIC FIELDS "> 
+    public static final boolean DEFAULT_INCLUDE_SUBFOLDERS = true;
+    public static final boolean DEFAULT_INCLUDE_FILES = false;
+    public static final boolean DEFAULT_INCLUDE_FOLDERS = true;
+    public static final String DEFAULT_REGEX = ".*";
+    // </editor-fold>
+    
     // <editor-fold defaultstate="collapsed" desc=" SEARCH FILE "> 
     public static class SearchFile{
-        public final String filename;
+        public final String name;
         public final Path path;
-        public final long size;
+        public final Size size;
         public final boolean denied;
+        
+        public static class Size implements Comparable<Size>{
+            public final long bytes;
+            public final String text;
+
+            public Size(long size, String formattedSize) {
+                this.bytes = size;
+                this.text = formattedSize;
+            }
+
+            @Override
+            public int compareTo(Size s) {
+                return Long.compare(this.bytes, s.bytes);
+            }
+        }
 
         private SearchFile(String filename, Path path, long size, boolean denied) {
-            this.filename = filename;
+            this.name = filename;
             this.path = path;
-            this.size = size;
+            this.size = new Size(size, SearchFile.formatSize(size));
             this.denied = denied;
         }
         
@@ -38,30 +61,34 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         private SearchFile(String filename, Path path) {
             this(filename, path, 0, true);
         }
-        
-        public String getFormattedSize(){
-            if(size <= 0) return "0";
+
+        public static String formatSize(long bytes){
+            if(bytes <= 0) return "0";
             final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
-            int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
-            return new DecimalFormat("#,##0.#").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+            int digitGroups = (int) (Math.log10(bytes)/Math.log10(1024));
+            return new DecimalFormat("#,##0.#").format(bytes/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
     }
     // </editor-fold>
     
     private Path folder;
-    private String regex;
-    private boolean subfolders = true;
-    private boolean files = false;
-    private boolean folders = true;
+    private String regex = DEFAULT_REGEX;
+    private boolean subfolders = DEFAULT_INCLUDE_SUBFOLDERS;
+    private boolean files = DEFAULT_INCLUDE_FILES;
+    private boolean folders = DEFAULT_INCLUDE_FOLDERS;
     
     private LinkedList<SearchFile> found = new LinkedList<>();
     private volatile boolean interrupted; 
 
     public RegexSearchAction(String folder, String regex) {
         this.folder = Path.of(folder);
-        if(regex == null || regex.isEmpty()){
-            this.regex = ".*";
-        }else{
+        if(regex != null && !regex.isEmpty()){
             this.regex = regex;
         }
     }
@@ -80,11 +107,18 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
                 }
                 
                 @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if(interrupted) return FileVisitResult.TERMINATE;
+                    if(folder.equals(dir)) return FileVisitResult.CONTINUE;
+                    return subfolders? FileVisitResult.CONTINUE:FileVisitResult.SKIP_SUBTREE;
+                }
+                
+                @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if(interrupted) return FileVisitResult.TERMINATE;
                     long size = 0;
                     boolean denied = false;
-                    if(folders){ //if not including folders, there is no need to read every file size.
+                    if(folders){ //if not including folders, there is no need to read every file bytes.
                         try{
                             size = Files.size(file);
                             folderSize+=size;   
@@ -108,13 +142,6 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
                     }
                     
                     return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    if(folder.equals(dir)) return FileVisitResult.CONTINUE;
-                    if(interrupted) return FileVisitResult.TERMINATE;
-                    return subfolders? FileVisitResult.CONTINUE:FileVisitResult.SKIP_SUBTREE;
                 }
 
                 @Override
@@ -170,7 +197,7 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         boolean changed = false;
         for (SearchFile file : files) {
             try {
-                Files.move(file.path, Path.of(folder).resolve(file.filename));
+                Files.move(file.path, Path.of(folder).resolve(file.name));
                 changed = true;
                 found.remove(file);
             } catch (IOException ex) {
@@ -180,7 +207,7 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         return changed;
     }
     
-    public boolean remove(List<SearchFile> files){
+    public boolean delete(List<SearchFile> files){
         boolean changed = false;
         for (SearchFile file : files) {
             try {
@@ -194,10 +221,10 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         return changed; 
     }
     
-    public boolean remove(int...indexes){
+    public boolean delete(int...indexes){
         if(indexes.length == 0) return false;
         
-        boolean removedOne = iteratePerforming(path -> {
+        boolean deletedOne = iteratePerforming(path -> {
             try {
                 Files.delete(path);
                 return true;
@@ -207,7 +234,7 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
             }
         }, indexes);
 
-        return removedOne;
+        return deletedOne;
     }
 
     @Override
@@ -215,10 +242,12 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         interrupted = true;
     }
 
+    // <editor-fold defaultstate="collapsed" desc=" SETTERS "> 
     public void setFilters(boolean subfolders, boolean files, boolean folders) {
         this.subfolders = subfolders;
         this.files = files;
         this.folders = folders;
     }
+    // </editor-fold>
    
 }
