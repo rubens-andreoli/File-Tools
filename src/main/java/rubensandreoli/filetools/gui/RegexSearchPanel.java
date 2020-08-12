@@ -7,23 +7,17 @@ import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
-import javax.swing.JLabel;
+import java.util.function.Function;
 import javax.swing.JOptionPane;
 import javax.swing.JTable;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-import javax.swing.table.TableStringConverter;
 import rubensandreoli.commons.swing.PathField;
 import rubensandreoli.filetools.tools.RegexSearchAction;
 import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
-import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile.Size;
 
 /** 
  * References:
@@ -32,7 +26,7 @@ import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile.Size;
  * https://stackoverflow.com/questions/5970765/java-detect-ctrlx-key-combination-on-a-jtree
  * 
  */
-public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
+public class RegexSearchPanel extends  ToolPanel{
     private static final long serialVersionUID = 1L;
 
     private RegexSearchAction action;
@@ -40,12 +34,46 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
     private final Model model = new Model();
     private final TableRowSorter<Model> sorter;
 
+    // <editor-fold defaultstate="collapsed" desc=" TABLE COLUMNS "> 
+    public static enum TableColumns { //overlly complicated, just proof of concept
+        
+        FILENAME("Filename", String.class, f -> f.name, 100, 120),
+        SIZE("Size", Integer.class, f -> f.size, 60, 60),
+        PATH("Path", SearchFile.class, f -> f, 100, 250);
+
+        public final String display;
+        public final Class clazz;
+        public final Function<SearchFile, Object> accessor;
+        public final int minWidth, preferredWidth;
+
+        private TableColumns(String display, Class clazz, Function<SearchFile, Object> accessor, int minWidth, int preferredWidth) {
+            this.display = display;
+            this.clazz = clazz;
+            this.accessor = accessor;
+            this.minWidth = minWidth;
+            this.preferredWidth = preferredWidth;
+        }
+        
+        private static void ajustColumnsSize(JTable table){
+            for (TableColumns col : TableColumns.values()) {
+                table.getColumnModel().getColumn(col.ordinal()).setMinWidth(col.minWidth);
+                table.getColumnModel().getColumn(col.ordinal()).setPreferredWidth(col.preferredWidth);
+            }
+        }
+        
+        private static void setRenderer(JTable table, DefaultTableCellRenderer renderer){
+            for (int i = 0; i < TableColumns.values().length; i++) {
+                table.getColumnModel().getColumn(i).setCellRenderer(renderer);
+            }
+        }
+
+    }
+    // </editor-fold>
+    
     // <editor-fold defaultstate="collapsed" desc=" MODEL "> 
     private class Model extends AbstractTableModel{
         private static final long serialVersionUID = 1L;
 
-        private String[] headers = new String[]{"Filename", "Size", "Path"};
-        
         @Override
         public int getRowCount() {
             return files==null? 0:files.size();
@@ -53,7 +81,7 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
 
         @Override
         public int getColumnCount() {
-            return 3;
+            return TableColumns.values().length;
         }
 
         @Override
@@ -63,57 +91,36 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
 
         @Override
         public String getColumnName(int column) {
-            return headers[column];
+            return TableColumns.values()[column].display;
         }
 
         @Override
         public Class<?> getColumnClass(int column) {
-            switch(column){
-                case 0:
-                    return SearchFile.class;
-                case 1:
-                    return SearchFile.Size.class;
-                case 2:
-                    return Path.class;
-                default:
-                    return null;
-            }
+            return TableColumns.values()[column].clazz;
         } 
         
         @Override
         public Object getValueAt(int row, int column) {
-            SearchFile info = files.get(row); //FIX: out of bounds when deleting/moving; remove table first? disable table?
-            switch(column){
-                case 0:
-                    return info;
-                case 1:
-                    return info.size;
-                case 2:
-                    return info.path;
-                default:
-                    return null;
-            }
+            return TableColumns.values()[column].accessor.apply(files.get(row)); //FIX: out of bounds when deleting/moving; remove table first? disable table?
         }
     }
     // </editor-fold>
     
-    // <editor-fold defaultstate="collapsed" desc=" RENDERERS "> 
-    public static class SizeCellRenderer extends DefaultTableCellRenderer{
+    // <editor-fold defaultstate="collapsed" desc=" RENDERER "> 
+    public static class SearchCellRenderer extends DefaultTableCellRenderer{
         private static final long serialVersionUID = 1L;
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            return super.getTableCellRendererComponent(table, ((Size)value).text, isSelected, hasFocus, row, column);
-        }
-
-    } 
-    
-    public static class FileCellRenderer extends DefaultTableCellRenderer{
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            return super.getTableCellRendererComponent(table, ((SearchFile)value).name, isSelected, hasFocus, row, column);
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if(!isSelected){
+                if(((SearchFile)table.getValueAt(row, TableColumns.PATH.ordinal())).size == null){
+                    c.setBackground(Color.LIGHT_GRAY);
+                }else{
+                    c.setBackground(Color.WHITE);
+                }
+            }
+            return c;
         }
         
     }
@@ -122,10 +129,10 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
     public RegexSearchPanel() {
         super("Regex Search");
         initComponents();
-        tblFiles.setDefaultRenderer(SearchFile.class, new FileCellRenderer());
-        tblFiles.setDefaultRenderer(Size.class, new SizeCellRenderer());
         sorter = new TableRowSorter<>((Model)tblFiles.getModel());
         tblFiles.setRowSorter(sorter); //TODO: sort view or model?
+        TableColumns.ajustColumnsSize(tblFiles);
+        TableColumns.setRenderer(tblFiles, new SearchCellRenderer());
     }
 
     @SuppressWarnings("unchecked")
@@ -348,9 +355,9 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
                 JOptionPane.showMessageDialog(this,
                     "Error",
                     "Failed oppening file "+searchFile.path,
-                    JOptionPane.INFORMATION_MESSAGE
+                    JOptionPane.ERROR_MESSAGE
                 );
-                System.err.println(ex.getMessage()); //FIX: remove debugging
+                System.err.println(ex.getMessage()); //TODO: remove debugging
             }
         }
     }//GEN-LAST:event_tblFilesMouseClicked
@@ -366,8 +373,13 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
                     JOptionPane.OK_CANCEL_OPTION, 
                     JOptionPane.QUESTION_MESSAGE
             ) == JOptionPane.CANCEL_OPTION) return;
-            doInBackgroud(() -> action.moveTo(destination, getSelected()), b -> {
+            
+            doInBackgroud(() -> {
+                tblFiles.setEnabled(false);
+                return action.moveTo(destination, getSelected());
+            }, b -> {
                 if(b) model.fireTableDataChanged();
+                tblFiles.setEnabled(true);
             });
         }
     }//GEN-LAST:event_itmMoveActionPerformed
@@ -382,6 +394,7 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
                     JOptionPane.OK_CANCEL_OPTION, 
                     JOptionPane.QUESTION_MESSAGE
             ) == JOptionPane.CANCEL_OPTION) return;
+            
             doInBackgroud(() -> {
                 tblFiles.setEnabled(false);
                 return action.delete(getSelected());
@@ -408,23 +421,23 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
             case KeyEvent.VK_M:
                 if(evt.getModifiersEx() == KeyEvent.CTRL_DOWN_MASK) itmMoveActionPerformed(null);
                 break;
-            case KeyEvent.VK_SPACE: //FIX: remove debbuging
+            case KeyEvent.VK_SPACE: //TODO: remove debugging
                 getSelected();
                 break;
         }
     }//GEN-LAST:event_tblFilesKeyReleased
 
     private void itmFilenameActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_itmFilenameActionPerformed
-        sorter.toggleSortOrder(0);
+        sorter.toggleSortOrder(TableColumns.FILENAME.ordinal());
     }//GEN-LAST:event_itmFilenameActionPerformed
 
-    private void itmSizeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_itmSizeActionPerformed
-        sorter.toggleSortOrder(1);
-    }//GEN-LAST:event_itmSizeActionPerformed
-
     private void itmPathActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_itmPathActionPerformed
-        sorter.toggleSortOrder(2);
+        sorter.toggleSortOrder(TableColumns.PATH.ordinal());
     }//GEN-LAST:event_itmPathActionPerformed
+
+    private void itmSizeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_itmSizeActionPerformed
+        sorter.toggleSortOrder(TableColumns.SIZE.ordinal());
+    }//GEN-LAST:event_itmSizeActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnFolder;
@@ -472,20 +485,17 @@ public class RegexSearchPanel extends  ToolPanel{ //TODO: implement filters
     @Override
     public void stop() {
         super.stop(false);
-        if(action != null){
-            action.interrupt();
-        }
+        if(action != null) action.interrupt();
     }
     
     private SearchFile getClicked(int x, int y){
-        int clickedRow = tblFiles.rowAtPoint(new Point(x, y));
-        return (SearchFile) tblFiles.getValueAt(clickedRow, 0);
+        return (SearchFile) tblFiles.getValueAt(tblFiles.rowAtPoint(new Point(x, y)), TableColumns.PATH.ordinal());
     }
     
     private List<SearchFile> getSelected(){
         List<SearchFile> list = new ArrayList<>();
         for (int i : tblFiles.getSelectedRows()) {
-            list.add((SearchFile)tblFiles.getValueAt(i, 0));
+            list.add((SearchFile)tblFiles.getValueAt(i, TableColumns.PATH.ordinal()));
         }
         return list;
     }

@@ -6,10 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
+import rubensandreoli.commons.utils.FileUtils;
 import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
 
 /** 
@@ -27,57 +27,60 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
     
     // <editor-fold defaultstate="collapsed" desc=" SEARCH FILE "> 
     public static class SearchFile{
+        
         public final String name;
         public final Path path;
         public final Size size;
-        public final boolean denied;
-        
-        public static class Size implements Comparable<Size>{
-            public final long bytes;
-            public final String text;
 
-            public Size(long size, String formattedSize) {
+        // <editor-fold defaultstate="collapsed" desc=" SIZE "> 
+        public static class Size implements Comparable<Size>{
+            
+            private final long bytes;
+            private final String text;
+
+            public Size(long size) {
                 this.bytes = size;
-                this.text = formattedSize;
+                this.text = FileUtils.formatSize(size);
             }
 
             @Override
             public int compareTo(Size s) {
                 return Long.compare(this.bytes, s.bytes);
             }
-        }
 
-        private SearchFile(String filename, Path path, long size, boolean denied) {
+            @Override
+            public String toString() {
+                return text;
+            }
+
+        }
+        // </editor-fold>
+
+        private SearchFile(String filename, Path path, long size){
             this.name = filename;
             this.path = path;
-            this.size = new Size(size, SearchFile.formatSize(size));
-            this.denied = denied;
-        }
-        
-        private SearchFile(String filename, Path path, long size) {
-            this(filename, path, size, false);
+            this.size = new Size(size);
         }
         
         private SearchFile(String filename, Path path) {
-            this(filename, path, 0, true);
+            this.name = filename;
+            this.path = path;
+            size = null;
         }
-
-        public static String formatSize(long bytes){
-            if(bytes <= 0) return "0";
-            final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
-            int digitGroups = (int) (Math.log10(bytes)/Math.log10(1024));
-            return new DecimalFormat("#,##0.#").format(bytes/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+        
+        public boolean isFolder(){
+            return size == null;
         }
 
         @Override
         public String toString() {
-            return name;
+            return path.toString();
         }
 
     }
     // </editor-fold>
     
-    private Path folder;
+    private final Path folder;
     private String regex = DEFAULT_REGEX;
     private boolean subfolders = DEFAULT_INCLUDE_SUBFOLDERS;
     private boolean files = DEFAULT_INCLUDE_FILES;
@@ -97,9 +100,7 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
     public LinkedList<SearchFile> perform() {
         try {
             Files.walkFileTree(folder, new SimpleFileVisitor<Path>(){
-                
-                private long folderSize;
-                
+
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
                     System.err.println("Error accessing file: " +file.toAbsolutePath()+" -> "+ exc.getMessage());
@@ -110,50 +111,29 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                     if(interrupted) return FileVisitResult.TERMINATE;
                     if(folder.equals(dir)) return FileVisitResult.CONTINUE;
+                    if(folders){
+                        final String foldername = dir.getFileName().toString();
+                        if(foldername.matches(regex)){
+                            found.add(new SearchFile(foldername, dir));
+                        }
+                    }
                     return subfolders? FileVisitResult.CONTINUE:FileVisitResult.SKIP_SUBTREE;
                 }
                 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     if(interrupted) return FileVisitResult.TERMINATE;
-                    long size = 0;
-                    boolean denied = false;
-                    if(folders){ //if not including folders, there is no need to read every file bytes.
-                        try{
-                            size = Files.size(file);
-                            folderSize+=size;   
-                        }catch(IOException ex){
-                            denied = true;
-                        }
-                    }
                     if(files){
-                        String filename = file.getFileName().toString();
+                        final String filename = file.getFileName().toString();
                         if(filename.matches(regex)){
-                            if(!folders){
-                                try{
-                                    size = Files.size(file); 
-                                }catch(IOException ex){
-                                    denied = true;
-                                }
-                            }
-                            SearchFile info = new SearchFile(filename, file, size, denied);
-                            found.add(info);
+                            found.add(new SearchFile(filename, file, FileUtils.getFileSize(file.toFile())));
                         }
                     }
-                    
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    if(folder.equals(dir)) return FileVisitResult.CONTINUE;
-                    if(folders){
-                        String foldername = dir.getFileName().toString();
-                        if(foldername.matches(regex)){
-                            found.add(new SearchFile(foldername, dir, folderSize));
-                            folderSize = 0;
-                        }
-                    }
                     return interrupted? FileVisitResult.TERMINATE:FileVisitResult.CONTINUE;
                 }
                 
