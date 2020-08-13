@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2020 Rubens A. Andreoli Jr.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package rubensandreoli.filetools.tools;
 
 import java.io.IOException;
@@ -11,6 +27,7 @@ import java.util.List;
 import java.util.function.Function;
 import rubensandreoli.commons.utils.FileUtils;
 import rubensandreoli.filetools.tools.RegexSearchAction.SearchFile;
+import rubensandreoli.filetools.tools.support.Size;
 
 /** 
  * References:
@@ -31,30 +48,6 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
         public final String name;
         public final Path path;
         public final Size size;
-
-        // <editor-fold defaultstate="collapsed" desc=" SIZE "> 
-        public static class Size implements Comparable<Size>{
-            
-            private final long bytes;
-            private final String text;
-
-            public Size(long size) {
-                this.bytes = size;
-                this.text = FileUtils.formatSize(size);
-            }
-
-            @Override
-            public int compareTo(Size s) {
-                return Long.compare(this.bytes, s.bytes);
-            }
-
-            @Override
-            public String toString() {
-                return text;
-            }
-
-        }
-        // </editor-fold>
 
         private SearchFile(String filename, Path path, long size){
             this.name = filename;
@@ -100,12 +93,6 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
     public LinkedList<SearchFile> perform() {
         try {
             Files.walkFileTree(folder, new SimpleFileVisitor<Path>(){
-
-                @Override
-                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                    System.err.println("Error accessing file: " +file.toAbsolutePath()+" -> "+ exc.getMessage());
-                    return interrupted? FileVisitResult.TERMINATE:FileVisitResult.CONTINUE;
-                }
                 
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
@@ -130,6 +117,12 @@ public class RegexSearchAction implements Action<LinkedList<SearchFile>>{
                         }
                     }
                     return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    System.err.println("Error accessing file: " +file.toAbsolutePath()+" -> "+ exc.getMessage()); //TODO: do what then?
+                    return interrupted? FileVisitResult.TERMINATE:FileVisitResult.CONTINUE;
                 }
 
                 @Override
